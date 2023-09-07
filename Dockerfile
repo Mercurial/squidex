@@ -43,7 +43,34 @@ RUN dotnet tool install --tool-path /tools dotnet-counters \
 #
 # Stage 2, Build Frontend
 #
-FROM squidex/frontend-build:18.10 as frontend
+FROM ubuntu:22.04 as frontend
+RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+RUN apt-get update
+RUN apt-get install software-properties-common -y
+RUN apt-get install -y curl wget
+RUN apt-get install -y build-essential libssl-dev
+
+ENV NVM_DIR /usr/local/nvm
+ENV NODE_VERSION 18.10.0
+RUN mkdir -p $NVM_DIR
+# Install nvm with node and npm
+RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.39.5/install.sh | bash \
+    && source $NVM_DIR/nvm.sh \
+    && nvm install $NODE_VERSION \
+    && nvm alias default $NODE_VERSION \
+    && nvm use default
+
+# Install Chrome Stable
+RUN add-apt-repository ppa:saiarcot895/chromium-beta
+RUN apt-get install -y gnupg && \
+    apt-get install -y fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 \
+            libgtk2.0-0 libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2
+RUN apt-get install chromium-browser -y
+
+ENV CHROME_BIN /usr/bin/chromium-browser
+
+ENV NODE_PATH $NVM_DIR/v$NODE_VERSION/lib/node_modules
+ENV PATH      $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
 
 WORKDIR /src
 
@@ -53,13 +80,12 @@ ENV CONTINUOUS_INTEGRATION=1
 COPY frontend/package*.json ./
 
 # Install Node packages 
-RUN npm install --loglevel=error --force
+RUN npm install --force
 
 COPY frontend .
 
 # Build Frontend
-RUN npm run test:coverage \
- && npm run build
+RUN npm run test:coverage && npm run build
 
 RUN cp -a build /build/
 
